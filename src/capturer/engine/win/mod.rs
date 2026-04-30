@@ -76,7 +76,7 @@ impl GraphicsCaptureApiHandler for Capturer {
         frame: &mut WCFrame,
         _: InternalCaptureControl,
     ) -> Result<(), Self::Error> {
-        let raw_elapsed = frame.timespan().Duration.saturating_sub(self.start_time.0);
+        let raw_elapsed = frame.timestamp().Duration.saturating_sub(self.start_time.0);
         let display_time = self
             .start_time
             .1
