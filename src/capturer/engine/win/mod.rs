@@ -76,14 +76,21 @@ impl GraphicsCaptureApiHandler for Capturer {
         frame: &mut WCFrame,
         _: InternalCaptureControl,
     ) -> Result<(), Self::Error> {
-        let elapsed = frame.timespan().Duration - self.start_time.0;
-        let display_time = self
-            .start_time
-            .1
-            .checked_add(Duration::from_secs_f64(
-                elapsed as f64 / self.perf_freq as f64,
-            ))
-            .unwrap();
+        let raw_elapsed = frame.timestamp().Duration.saturating_sub(self.start_time.0);
+        let to_add = raw_elapsed as f64 / self.perf_freq as f64;
+
+        let display_time = if to_add.is_sign_negative() {
+            self.start_time.1
+        } else {
+            self
+                .start_time
+                .1
+                .checked_add(Duration::from_secs_f64(
+                    to_add
+                ))
+                .unwrap_or(self.start_time.1)
+        };
+
 
         match &self.crop {
             Some(cropped_area) => {
