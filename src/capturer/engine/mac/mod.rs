@@ -69,7 +69,10 @@ impl sc::stream::OutputImpl for Capturer {
         sample_buf: &mut cm::SampleBuf,
         kind: sc::OutputType,
     ) {
-        let _ = self.inner_mut().tx.send((sample_buf.retained(), kind));
+        if let Err(e) =
+            self.inner_mut().tx.try_send((sample_buf.retained(), kind)) {
+            println!("Channel capacity reached: {e:#}")
+        }
     }
 }
 
