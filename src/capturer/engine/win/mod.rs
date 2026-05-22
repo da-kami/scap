@@ -1,18 +1,15 @@
 use crate::{
     capturer::{Area, Options, Point, Resolution, Size},
     frame::{AudioFormat, AudioFrame, BGRAFrame, Frame, FrameType, VideoFrame},
-    targets::{self, get_scale_factor, Target},
+    targets::{self, Target},
 };
 use ::windows::Win32::System::Performance::{QueryPerformanceCounter, QueryPerformanceFrequency};
 use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
-    StreamInstant,
 };
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{cmp, time::Duration};
 use std::{
-    os::windows,
-    ptr::null_mut,
     sync::mpsc::{self, Receiver, RecvTimeoutError, Sender},
 };
 use windows_capture::{
@@ -112,11 +109,6 @@ impl GraphicsCaptureApiHandler for Capturer {
                 let mut out_buf = Vec::with_capacity(expected_len);
                 let raw_frame_buffer = cropped_buffer.as_nopadding_buffer(&mut out_buf);
 
-                let current_time = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .expect("Failed to get current time")
-                    .as_nanos() as u64;
-
                 let bgr_frame = BGRAFrame {
                     display_time,
                     width: cropped_area.size.width as i32,
@@ -131,10 +123,6 @@ impl GraphicsCaptureApiHandler for Capturer {
                 let mut frame_buffer = frame.buffer().unwrap();
                 let raw_frame_buffer = frame_buffer.as_raw_buffer();
                 let frame_data = raw_frame_buffer.to_vec();
-                let current_time = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .expect("Failed to get current time")
-                    .as_nanos() as u64;
                 let bgr_frame = BGRAFrame {
                     display_time,
                     width: frame.width() as i32,
@@ -272,11 +260,6 @@ pub fn create_capturer(
 }
 
 pub fn get_output_frame_size(options: &Options) -> [u32; 2] {
-    let target = options
-        .target
-        .clone()
-        .unwrap_or_else(|| Target::Display(targets::get_main_display()));
-
     let crop_area = get_crop_area(options);
 
     let mut output_width = (crop_area.size.width) as u32;
@@ -300,7 +283,7 @@ pub fn get_output_frame_size(options: &Options) -> [u32; 2] {
     [output_width, output_height]
 }
 
-fn get_absolute_value(value: f64, scale_factor: f64) -> f64 {
+fn get_absolute_value(value: f64, _scale_factor: f64) -> f64 {
     let value = (value).floor();
     value + value % 2.0
 }
@@ -430,12 +413,13 @@ fn spawn_audio_stream(
                 Err(_) => return,
             };
 
-            let (data, info, timestamp) = match sample_rx.recv_timeout(Duration::from_millis(100)) {
+            let (data, _info, timestamp) = match sample_rx.recv_timeout(Duration::from_millis(100)) {
                 Ok(Ok(data)) => data,
                 Err(RecvTimeoutError::Timeout) => {
                     continue;
                 }
                 _ => {
+                    // TODO: Daniel: WTF is this? What are these guys doing?
                     // let _ = tx.send(Err(e));
                     return;
                 }
