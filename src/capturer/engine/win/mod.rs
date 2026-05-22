@@ -12,6 +12,7 @@ use std::{cmp, time::Duration};
 use std::{
     sync::mpsc::{self, Receiver, RecvTimeoutError, Sender},
 };
+use std::sync::mpsc::SyncSender;
 use windows_capture::{
     capture::{CaptureControl, Context, GraphicsCaptureApiHandler},
     frame::Frame as WCFrame,
@@ -26,7 +27,7 @@ use windows_capture::{
 
 #[derive(Debug)]
 struct Capturer {
-    pub tx: mpsc::Sender<Frame>,
+    pub tx: mpsc::SyncSender<Frame>,
     pub crop: Option<Area>,
     pub start_time: (i64, SystemTime),
     pub perf_freq: i64,
@@ -116,7 +117,9 @@ impl GraphicsCaptureApiHandler for Capturer {
                     data: raw_frame_buffer.to_vec(),
                 };
 
-                let _ = self.tx.send(Frame::Video(VideoFrame::BGRA(bgr_frame)));
+                if let Err(e) = self.tx.send(Frame::Video(VideoFrame::BGRA(bgr_frame))) {
+                    eprintln!("Failed to send video frame: {}", e);
+                }
             }
             None => {
                 // get raw frame buffer
@@ -130,7 +133,9 @@ impl GraphicsCaptureApiHandler for Capturer {
                     data: frame_data,
                 };
 
-                let _ = self.tx.send(Frame::Video(VideoFrame::BGRA(bgr_frame)));
+                if let Err(e) = self.tx.send(Frame::Video(VideoFrame::BGRA(bgr_frame))) {
+                    eprintln!("Failed to send video frame: {}", e);
+                }
             }
         }
         Ok(())
@@ -168,7 +173,7 @@ impl WCStream {
 
 #[derive(Clone, Debug)]
 struct FlagStruct {
-    pub tx: mpsc::Sender<Frame>,
+    pub tx: mpsc::SyncSender<Frame>,
     pub crop: Option<Area>,
 }
 
@@ -180,7 +185,7 @@ pub enum CreateCapturerError {
 
 pub fn create_capturer(
     options: &Options,
-    tx: mpsc::Sender<Frame>,
+    tx: mpsc::SyncSender<Frame>,
 ) -> Result<WCStream, CreateCapturerError> {
     let target = options
         .target
@@ -371,7 +376,7 @@ fn build_audio_stream(
 }
 
 fn spawn_audio_stream(
-    tx: Sender<Frame>,
+    tx: SyncSender<Frame>,
     ready_tx: Sender<Result<(), CreateCapturerError>>,
     ctrl_rx: Receiver<AudioStreamControl>,
 ) {
