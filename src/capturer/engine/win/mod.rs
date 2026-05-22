@@ -76,7 +76,7 @@ impl GraphicsCaptureApiHandler for Capturer {
         frame: &mut WCFrame,
         _: InternalCaptureControl,
     ) -> Result<(), Self::Error> {
-        let raw_elapsed = frame.timestamp().Duration.saturating_sub(self.start_time.0);
+        let raw_elapsed = frame.timestamp()?.Duration.saturating_sub(self.start_time.0);
         let to_add = raw_elapsed as f64 / self.perf_freq as f64;
 
         let display_time = if to_add.is_sign_negative() {
@@ -105,11 +105,12 @@ impl GraphicsCaptureApiHandler for Capturer {
                     .buffer_crop(start_x, start_y, end_x, end_y)
                     .expect("Failed to crop buffer");
 
-                // get raw frame buffer
-                let raw_frame_buffer = match cropped_buffer.as_nopadding_buffer() {
-                    Ok(buffer) => buffer,
-                    Err(_) => return Err(("Failed to get raw buffer").into()),
-                };
+                let expected_len = (cropped_area.size.width as usize)
+                    * (cropped_area.size.height as usize)
+                    * 4; // BGRA = 4 bytes per pixel
+
+                let mut out_buf = Vec::with_capacity(expected_len);
+                let raw_frame_buffer = cropped_buffer.as_nopadding_buffer(&mut out_buf);
 
                 let current_time = SystemTime::now()
                     .duration_since(UNIX_EPOCH)
